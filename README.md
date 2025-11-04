@@ -1,2 +1,2 @@
 # shog
-simple TUI written in Go
+simple TUI framework written in Go
