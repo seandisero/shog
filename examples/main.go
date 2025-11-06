@@ -27,12 +27,19 @@ func handleInput(in chan byte) {
 }
 
 func main() {
+	// NOTE: I wonder if this can be simplified a bit more, how do I want
+	// the user to interact with the Shoggoth? all I know is I want it
+	// to be very simple interaction and have it 'just work'
 	shoggoth, err := shog.SpawnShoggoth()
 	if err != nil {
 		slog.Error("could not spawn shoggoth", "error", err)
 	}
 	defer shoggoth.End()
 
+	// NOTE: how would I do this if creating a chat application? I would want
+	// my input channel to be listening for text responces from the server.
+	// so what would that look like here, how should I interact and set
+	// channels
 	inputChan := make(chan byte)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

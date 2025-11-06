@@ -2,6 +2,8 @@ package shog
 
 type Key int
 
+// TODO: finish up some more keys
+
 const (
 	Null Key = iota
 	StartOfHeading

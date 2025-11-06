@@ -12,6 +12,9 @@ type Screen struct {
 	redraw     chan struct{}
 }
 
+// TODO: if I'm moving to the functional options pattern for creating a
+// Shoggoth, how would that look here? maybe that doesn't need to be
+// answered yet
 func NewScreen(w, h int) Screen {
 	return Screen{
 		Pixels:     make([]rune, w*h),
@@ -22,12 +25,14 @@ func NewScreen(w, h int) Screen {
 }
 
 func (s *Screen) AddWindow(w Window) {
+	// NOTE: maybe I don't want to support the adding of windows, I could
+	// just create a new Shoggoth instead.
 	w.redrawCh = s.redraw
 	s.Windows = append(s.Windows, w)
 }
 
 func (s *Screen) Draw() {
-	fmt.Printf("\033[H") // move cursor back to top left
+	fmt.Print("\033[H") // move cursor back to top left
 	s.initScreen()
 	s.drawHeader()
 	for i := range s.Windows {
@@ -81,36 +86,38 @@ func (s *Screen) drawInput(w Window) {
 func (s *Screen) drawBorder(w Window) {
 	i := w.Origin.X + (s.ScreenSize.X * (w.Origin.Y + 1))
 	// top margin
-	s.Pixels[i] = '\u250c'
+	// TODO: these box symbols should be moved to the key.go file,
+	// or maybe into a new symbols.go since they are not really keypresses
+	s.Pixels[i] = '\u250c' // ┌
 	i++
 	offset := i + w.W
 	for i < offset-1 {
-		s.Pixels[i] = rune('\u2500')
+		s.Pixels[i] = rune('\u2500') // ─
 		i++
 	}
-	s.Pixels[i] = '\u2510'
+	s.Pixels[i] = '\u2510' // ┐
 	i++
 
 	// sides
 	i += s.ScreenSize.X - w.W - 1
 	for j := 0; j < w.H-1; j++ {
 		offset = i + w.W
-		s.Pixels[i] = '\u2502'
+		s.Pixels[i] = '\u2502' // │
 		for i < offset {
 			i++
 		}
-		s.Pixels[i] = '\u2502'
+		s.Pixels[i] = '\u2502' // │
 		i += s.ScreenSize.X - w.W
 	}
 
 	// bottom
-	s.Pixels[i] = '\u2514'
+	s.Pixels[i] = '\u2514' // └
 	i++
 	offset = i + w.W
 	for i < offset-1 {
-		s.Pixels[i] = '\u2500'
+		s.Pixels[i] = '\u2500' // ─
 		i++
 	}
-	s.Pixels[i] = '\u2518'
+	s.Pixels[i] = '\u2518' // ┘
 	i++
 }

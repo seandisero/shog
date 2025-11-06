@@ -5,16 +5,22 @@ import (
 )
 
 type Window struct {
+	// TODO: should width and hight be in a UV struct?
 	W        int
 	H        int
-	Origin   UV
+	Origin   UV // determines where the window is placed within the screen
 	Input    []byte
 	redrawCh chan struct{}
 	inputCh  chan byte
 	ctx      context.Context
 }
 
+// TODO: this should be broken out into an actual functional options pattern.
+// new windows should be created with an WindowOptions struct
 func NewWindowWithCoords(w, h int, uv UV, ctx context.Context) Window {
+	// TODO: I should make sure that the incoming window dimensions do not
+	// go outisde the bounds of the screen, but that would require some
+	// knowledge of the state of Screen
 	win := Window{
 		W:       w,
 		H:       h,
@@ -39,6 +45,7 @@ func (w *Window) handleInput() {
 }
 
 func (w *Window) doInput(in byte) {
+	// TODO: add delete and no-break space to Key.go
 	switch in {
 	case byte(127):
 		if len(w.Input) == 0 {

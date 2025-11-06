@@ -29,6 +29,11 @@ func SpawnShoggoth() (*Shoggoth, error) {
 		return nil, err
 	}
 
+	// TODO: I should pull some functionality out of here maybe lean into the
+	// functional options patern a bit which means creating a spawnShoggoth
+	// function that takes in an Options struct so I can have
+	// SpawnShoggothWithWindows(number_of_windows)
+
 	screen := NewScreen(w, h)
 	ctx1 := context.Background()
 	ctx2 := context.Background()
@@ -53,6 +58,9 @@ func SpawnShoggoth() (*Shoggoth, error) {
 
 func (s *Shoggoth) Delve() error {
 	var err error
+	// NOTE: I wonder if there is a better pattern for this. I don't like that
+	// my cleanup is a side effect of End(), but I can't think of anything
+	// else at the moment
 	s.oldState, err = term.GetState(int(os.Stdin.Fd()))
 	if err != nil {
 		return err
