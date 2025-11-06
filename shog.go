@@ -3,6 +3,7 @@ package shog
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 
 	"golang.org/x/term"
@@ -11,15 +12,24 @@ import (
 type Shoggoth struct {
 	oldState *term.State
 	newState *term.State
-	Canvas   Screen
+	Screen   Screen
 }
 
-func (s *Shoggoth) Listen(input chan byte, ctx context.Context) {
-	s.Canvas.Windows[0].inputCh = input
-	s.Canvas.Windows[0].ctx = ctx
-	go s.Canvas.Windows[0].handleInput()
-	for range s.Canvas.redraw {
-		s.Canvas.Draw()
+type ShoggothConfig struct {
+	// TODO: this should contain things like:
+	//		- a new Theme struct to hold colors
+	//		- the number and positions of pannels
+}
+
+func (s *Shoggoth) Listen() {
+	err := s.Delve()
+	if err != nil {
+		slog.Error("could not setup terminal", "error", err)
+		s.End()
+		return
+	}
+	for range s.Screen.redraw {
+		s.Screen.Draw()
 	}
 }
 
@@ -32,35 +42,45 @@ func SpawnShoggoth() (*Shoggoth, error) {
 	// TODO: I should pull some functionality out of here maybe lean into the
 	// functional options patern a bit which means creating a spawnShoggoth
 	// function that takes in an Options struct so I can have
-	// SpawnShoggothWithWindows(number_of_windows)
+	// SpawnShoggothWithPannels(number_of_pannels)
+	// TODO: I should create a config for this
 
 	screen := NewScreen(w, h)
-	ctx1 := context.Background()
-	ctx2 := context.Background()
-	wind := NewWindowWithCoords(w/2-1, h-2, NewUV(0, 0), ctx1)
-	wind2 := NewWindowWithCoords(w/2-1, h-2, NewUV(w/2, 0), ctx2)
-	screen.AddWindow(wind)
-	screen.AddWindow(wind2)
+	// ctx1 := context.Background()
+	// ctx2 := context.Background()
+	// wind := NewPannelWithCoords(w/2-1, h-2, NewUV(0, 0), ctx1)
+	// wind2 := NewPannelWithCoords(w/2-1, h-2, NewUV(w/2, 0), ctx2)
+	// screen.AddPannel(wind)
+	// screen.AddPannel(wind2)
 
 	shoggoth := &Shoggoth{
 		oldState: nil,
 		newState: nil,
-		Canvas:   screen,
+		Screen:   screen,
 	}
 
-	err = shoggoth.Delve()
-	if err != nil {
-		return nil, err
-	}
+	// err = shoggoth.Delve()
+	// if err != nil {
+	// 	return nil, err
+	// }
 
 	return shoggoth, nil
 }
 
+func (s *Shoggoth) NameShoggoth(name string) {
+	s.Screen.headerText = fmt.Sprintf("~~ %s ~~", name)
+}
+
 func (s *Shoggoth) Delve() error {
-	var err error
+	// NOTE: at first I thought changing the terminal state would be better when
+	//		spawning a new shoggoth, but I think doing that on delve would be a
+	//		better way to go. don't change the state until the program runs.
 	// NOTE: I wonder if there is a better pattern for this. I don't like that
 	// my cleanup is a side effect of End(), but I can't think of anything
 	// else at the moment
+	// TODO: I should at least find a way to reset the terminal to the old state
+	//		on panic.
+	var err error
 	s.oldState, err = term.GetState(int(os.Stdin.Fd()))
 	if err != nil {
 		return err
@@ -75,15 +95,23 @@ func (s *Shoggoth) Delve() error {
 		return err
 	}
 
-	s.Canvas.Draw()
+	s.Screen.Draw()
 	return nil
+}
+
+func (s *Shoggoth) AddPannel(p *Pannel) {
+	ctx := context.Background()
+	p.ctx = ctx
+	s.Screen.AddPannel(p)
 }
 
 func (s *Shoggoth) End() {
 	reset()
-	term.Restore(int(os.Stdin.Fd()), s.oldState)
-	for i := range s.Canvas.Windows {
-		s.Canvas.Windows[i].ctx.Done()
+	if s.oldState != nil {
+		term.Restore(int(os.Stdin.Fd()), s.oldState)
+	}
+	for i := range s.Screen.Pannels {
+		s.Screen.Pannels[i].ctx.Done()
 	}
 }
 

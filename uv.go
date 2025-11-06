@@ -11,3 +11,7 @@ func NewUV(x, y int) UV {
 		Y: y,
 	}
 }
+
+func (uv *UV) Zero() bool {
+	return uv.X == 0 && uv.Y == 0
+}
