@@ -21,15 +21,15 @@ type ShoggothConfig struct {
 	//		- the number and positions of pannels
 }
 
-func (s *Shoggoth) Listen() {
-	err := s.Delve()
-	if err != nil {
-		slog.Error("could not setup terminal", "error", err)
-		s.End()
-		return
-	}
-	for range s.Screen.redraw {
-		s.Screen.Draw()
+func (s *Shoggoth) Listen(ctx context.Context) {
+outer:
+	for {
+		select {
+		case <-s.Screen.redraw:
+			s.Screen.Draw()
+		case <-ctx.Done():
+			break outer
+		}
 	}
 }
 
@@ -46,12 +46,6 @@ func SpawnShoggoth() (*Shoggoth, error) {
 	// TODO: I should create a config for this
 
 	screen := NewScreen(w, h)
-	// ctx1 := context.Background()
-	// ctx2 := context.Background()
-	// wind := NewPannelWithCoords(w/2-1, h-2, NewUV(0, 0), ctx1)
-	// wind2 := NewPannelWithCoords(w/2-1, h-2, NewUV(w/2, 0), ctx2)
-	// screen.AddPannel(wind)
-	// screen.AddPannel(wind2)
 
 	shoggoth := &Shoggoth{
 		oldState: nil,
@@ -59,25 +53,32 @@ func SpawnShoggoth() (*Shoggoth, error) {
 		Screen:   screen,
 	}
 
-	// err = shoggoth.Delve()
-	// if err != nil {
-	// 	return nil, err
-	// }
-
+	err = shoggoth.delve()
+	if err != nil {
+		return nil, fmt.Errorf("error delving into chaos%w", err)
+	}
 	return shoggoth, nil
+}
+
+func (s *Shoggoth) screenResized() {
+	for {
+		w, h, err := term.GetSize(int(os.Stdin.Fd()))
+		if err != nil {
+			slog.Error("couldn't get size of terminal")
+			return
+		}
+		if w != s.Screen.ScreenSize.X || h != s.Screen.ScreenSize.Y {
+			// TODO: I could put resizing logic here or call screen rezise
+			//		function
+		}
+	}
 }
 
 func (s *Shoggoth) NameShoggoth(name string) {
 	s.Screen.headerText = fmt.Sprintf("~~ %s ~~", name)
 }
 
-func (s *Shoggoth) Delve() error {
-	// NOTE: at first I thought changing the terminal state would be better when
-	//		spawning a new shoggoth, but I think doing that on delve would be a
-	//		better way to go. don't change the state until the program runs.
-	// NOTE: I wonder if there is a better pattern for this. I don't like that
-	// my cleanup is a side effect of End(), but I can't think of anything
-	// else at the moment
+func (s *Shoggoth) delve() error {
 	// TODO: I should at least find a way to reset the terminal to the old state
 	//		on panic.
 	var err error
@@ -86,9 +87,9 @@ func (s *Shoggoth) Delve() error {
 		return err
 	}
 
-	os.Stdout.Write([]byte("\033[?25l"))   // hide cursor
-	os.Stdout.Write([]byte("\033[?1049h")) // enable alternative screen buffer
-	fmt.Print("\033[48;2;24;26;26m")       // #1a1b26
+	os.Stdout.Write([]byte("\033[?25l"))           // hide cursor
+	os.Stdout.Write([]byte("\033[?1049h"))         // enable alternative screen buffer
+	os.Stdout.Write([]byte("\033[48;2;24;26;26m")) // #1a1b26
 
 	s.newState, err = term.MakeRaw(int(os.Stdin.Fd()))
 	if err != nil {
@@ -106,16 +107,15 @@ func (s *Shoggoth) AddPannel(p *Pannel) {
 }
 
 func (s *Shoggoth) End() {
+	term.Restore(int(os.Stdin.Fd()), s.oldState)
 	reset()
-	if s.oldState != nil {
-		term.Restore(int(os.Stdin.Fd()), s.oldState)
-	}
 	for i := range s.Screen.Pannels {
 		s.Screen.Pannels[i].ctx.Done()
 	}
 }
 
 func reset() {
-	fmt.Printf("\033[?25h")   // show cursor
-	fmt.Printf("\033[?1049l") // back to origional screen buffer
+	os.Stdout.Write([]byte("\033[?25h"))
+	os.Stdout.Write([]byte("\033[?1049l"))
+	os.Stdout.Sync()
 }

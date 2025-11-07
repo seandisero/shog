@@ -53,7 +53,7 @@ func (s *Screen) Draw() {
 
 func (s *Screen) initScreen() {
 	for i := range s.Pixels {
-		s.Pixels[i] = ' '
+		s.Pixels[i] = rune(160)
 	}
 }
 
@@ -80,24 +80,31 @@ func (s *Screen) drawHeader() {
 
 func (s *Screen) drawInput(w *Pannel) {
 	j := w.Origin.X + (s.ScreenSize.X * (w.Origin.Y + 1 + 1)) + 1
-	for i := 0; i < len(w.Input); i++ {
+	for i := 0; i < len(w.input); i++ {
 		if j%s.ScreenSize.X == w.Origin.X {
 			j++
 		}
 		if j%s.ScreenSize.X == w.Origin.X+w.Size.X {
 			j += s.ScreenSize.X - (w.Size.X - 1)
 		}
-		s.Pixels[j] = rune(w.Input[i])
+		s.Pixels[j] = rune(w.input[i])
 		j++
 	}
 }
 
 func (s *Screen) drawCanvas(p *Pannel) {
-	// TODO: I would like to have pannels be full instead of appending and
-	//		resizing, that way I can insert images or place text starting
-	//		points wherever I want.
-	// The new way of working would be to draw a buffer to the canvas instead
-	//		of draw input
+	for i := 0; i < len(p.canvas); i++ {
+		p.canvas[i] = rune(160)
+	}
+	if len(p.input) > 0 {
+		for i := range p.input {
+			if i >= len(p.canvas) {
+				break
+			}
+			p.canvas[i] = rune(p.input[i])
+		}
+	}
+	p.DrawImages()
 	j := p.Origin.X + (s.ScreenSize.X * (p.Origin.Y + 1 + 1)) + 1
 	for i := 0; i < len(p.canvas); i++ {
 		if j%s.ScreenSize.X == p.Origin.X { // should move past border
@@ -110,7 +117,6 @@ func (s *Screen) drawCanvas(p *Pannel) {
 		s.Pixels[j] = p.canvas[i]
 		j++
 	}
-
 }
 
 func (s *Screen) drawBorder(p *Pannel) {

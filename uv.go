@@ -15,3 +15,7 @@ func NewUV(x, y int) UV {
 func (uv *UV) Zero() bool {
 	return uv.X == 0 && uv.Y == 0
 }
+
+func (uv *UV) Square() int {
+	return uv.X * uv.Y
+}

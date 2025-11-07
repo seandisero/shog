@@ -37,4 +37,6 @@ const (
 	InformamtionSeparatorThree
 	InformamtionSeparatorTwo
 	InformamtionSeparatorOne
+
+	NonBreakingSpace Key = 160
 )

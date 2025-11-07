@@ -18,7 +18,7 @@ func handleInput(inputChan chan byte) {
 		}
 		if n > 0 {
 			char := buf[0]
-			if char == 3 {
+			if char == 3 { // this would be ctrl + c
 				return
 			}
 		}
@@ -27,10 +27,6 @@ func handleInput(inputChan chan byte) {
 }
 
 func main() {
-	// NOTE: I wonder if this can be simplified a bit more, how do I want
-	// the user to interact with the Shoggoth? all I know is I want it
-	// to be very simple interaction and have it 'just work'
-
 	shoggoth, err := shog.SpawnShoggoth()
 	if err != nil {
 		slog.Error("could not spawn shoggoth", "error", err)
@@ -38,28 +34,32 @@ func main() {
 	defer shoggoth.End()
 	shoggoth.NameShoggoth("example app")
 
-	err = shoggoth.Delve()
-	if err != nil {
-		slog.Error("error delving into chaos", "error", err)
-		return
-	}
-	wind_bottom := shog.NewPannel()
+	background := shog.NewPannel()
 	wind := shog.NewPannel(
-		shog.WithSize(6, 6),
+		shog.WithSize(16, 16),
 		shog.WithOrigin(4, 4),
+		shog.WithBorderOptions(shog.WithCustomPannelBorder(
+			shog.Symbol(160),
+			shog.Symbol(160),
+			shog.Symbol(160),
+			shog.Symbol(160),
+			shog.Symbol(160),
+			shog.Symbol(160),
+		)),
 	)
-	shoggoth.AddPannel(wind_bottom)
+	shoggoth.AddPannel(background)
 	shoggoth.AddPannel(wind)
 
-	// NOTE: how would I do this if creating a chat application? I would want
-	// my input channel to be listening for text responces from the server.
-	// so what would that look like here, how should I interact and set
-	// channels
+	background.AddImage(&shog.TEST_IMAGE)
+	background.AddImage(&shog.TEST_IMAGE2)
+	shog.TEST_IMAGE3.SetOrigin(shog.NewUV(64, 16))
+	background.AddImage(shog.TEST_IMAGE3)
+
 	inputChan := make(chan byte)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	go wind.HandleInput(inputChan, ctx)
-	go shoggoth.Listen()
+	go shoggoth.Listen(ctx)
 	handleInput(inputChan)
 }
