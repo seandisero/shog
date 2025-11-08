@@ -2,6 +2,8 @@ package shog
 
 import (
 	"bytes"
+	"fmt"
+	"os"
 	"strconv"
 	"strings"
 )
@@ -14,7 +16,7 @@ type Image struct {
 
 var TEST_IMAGE = Image{
 	size:   NewUV(2, 2),
-	origin: NewUV(32, 16),
+	origin: NewUV(0, 0),
 	Data:   []rune("/\\\\/"),
 }
 
@@ -48,40 +50,52 @@ var image3 string = `24:24
 *   :::~~~~~~~~~~~~::: *
    .:::~~~~~~~~~~~~:::. 
  *  :::~~~~~~~~~~~~::: .
-    .:::~~~~~~~~~~:::*  
+.   .:::~~~~~~~~~~:::*  
   .  ::::'~~~~~'::::  . 
  *   '::::'~~~'::::'  * 
-   .  '::::::::::'   *  
-  *   . ':::::::'  .    
- .  *     ':::'      *  
-    .  *    '    .    . 
-  *      .    *      *  
- .   *      .     *   . 
-   .    *      .    *   
- *   .      *     .   * 
-  .    *       .      . `
+.  .  '::::::::::'   *  
+. *   . ':::::::'  .   .
+..  *     ':::'      *  
+.   .  *    '    .    . 
+. *      .    *      *  
+..   *      .     *   . 
+.  .    *      .    *   
+.*   .      *     .   * 
+. .    *       .      . `
 
-var TEST_IMAGE3 *Image = ImageFromBytes([]byte(image3))
+var TEST_IMAGE3, _ = ImageFromBytes([]byte(image3))
 
 func (i *Image) SetOrigin(uv UV) {
 	i.origin = uv
 }
 
-func ImageFromBytes(b []byte) *Image {
+func ImageFromBytes(b []byte) (*Image, error) {
 	split := bytes.Split(b, []byte("\n"))
 	if len(split) < 2 {
-		return nil
+		return nil, fmt.Errorf("malformed image file")
 	}
 	sizeBytes := bytes.Split(split[0], []byte(":"))
 	w, err := strconv.Atoi(string(sizeBytes[0]))
+	if err != nil {
+		return nil, err
+	}
 	h, err := strconv.Atoi(string(sizeBytes[0]))
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	image := Image{
 		size: NewUV(w, h),
 		Data: []rune(string(bytes.ReplaceAll(bytes.Join(split[1:], []byte("")), []byte("\n"), []byte("")))),
 	}
 
-	return &image
+	return &image, nil
+}
+
+func LoadImage(path string) (*Image, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	image, err := ImageFromBytes(b)
+	return image, nil
 }

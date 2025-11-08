@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"golang.org/x/term"
 )
@@ -22,6 +24,7 @@ type ShoggothConfig struct {
 }
 
 func (s *Shoggoth) Listen(ctx context.Context) {
+	s.Screen.Draw()
 outer:
 	for {
 		select {
@@ -38,11 +41,6 @@ func SpawnShoggoth() (*Shoggoth, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	// TODO: I should pull some functionality out of here maybe lean into the
-	// functional options patern a bit which means creating a spawnShoggoth
-	// function that takes in an Options struct so I can have
-	// SpawnShoggothWithPannels(number_of_pannels)
 	// TODO: I should create a config for this
 
 	screen := NewScreen(w, h)
@@ -57,7 +55,19 @@ func SpawnShoggoth() (*Shoggoth, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error delving into chaos%w", err)
 	}
+
+	go shoggoth.resizeListener()
 	return shoggoth, nil
+}
+
+func (s *Shoggoth) resizeListener() {
+	resizeSig := make(chan os.Signal, 1)
+	signal.Notify(resizeSig, syscall.SIGWINCH)
+	for {
+		<-resizeSig
+		s.Screen.MarkAllPannelsDirty()
+		s.Screen.redraw <- struct{}{}
+	}
 }
 
 func (s *Shoggoth) screenResized() {
@@ -100,10 +110,10 @@ func (s *Shoggoth) delve() error {
 	return nil
 }
 
-func (s *Shoggoth) AddPannel(p *Pannel) {
+func (s *Shoggoth) AddPannel(name string, p *Pannel) {
 	ctx := context.Background()
 	p.ctx = ctx
-	s.Screen.AddPannel(p)
+	s.Screen.AddPannel(name, p)
 }
 
 func (s *Shoggoth) End() {

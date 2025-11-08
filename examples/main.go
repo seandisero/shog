@@ -34,26 +34,28 @@ func main() {
 	defer shoggoth.End()
 	shoggoth.NameShoggoth("example app")
 
-	background := shog.NewPannel()
+	background := shog.NewPannel(shog.WithSize(32, 2))
 	wind := shog.NewPannel(
 		shog.WithSize(16, 16),
-		shog.WithOrigin(4, 4),
-		shog.WithBorderOptions(shog.WithCustomPannelBorder(
-			shog.Symbol(160),
-			shog.Symbol(160),
-			shog.Symbol(160),
-			shog.Symbol(160),
-			shog.Symbol(160),
-			shog.Symbol(160),
-		)),
+		shog.WithOrigin(16, 2),
 	)
-	shoggoth.AddPannel(background)
-	shoggoth.AddPannel(wind)
+	wind2 := shog.NewPannel(
+		shog.WithSize(16, 8),
+		shog.WithOrigin(0, 2),
+	)
+	wind3 := shog.NewPannel(
+		shog.WithSize(16, 8),
+		shog.WithOrigin(0, 10),
+	)
+	shoggoth.AddPannel("background", background)
+	shoggoth.AddPannel("inputWind", wind)
+	shoggoth.AddPannel("win2", wind2)
+	shoggoth.AddPannel("win3", wind3)
 
-	background.AddImage(&shog.TEST_IMAGE)
-	background.AddImage(&shog.TEST_IMAGE2)
-	shog.TEST_IMAGE3.SetOrigin(shog.NewUV(64, 16))
-	background.AddImage(shog.TEST_IMAGE3)
+	// background.AddImage(&shog.TEST_IMAGE)
+	// background.AddImage(&shog.TEST_IMAGE2)
+	// shog.TEST_IMAGE3.SetOrigin(shog.NewUV(1, 1))
+	// background.AddImage(shog.TEST_IMAGE3)
 
 	inputChan := make(chan byte)
 	ctx, cancel := context.WithCancel(context.Background())

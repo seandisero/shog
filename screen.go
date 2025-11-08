@@ -2,13 +2,17 @@ package shog
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
+
+	"golang.org/x/term"
 )
 
 type Screen struct {
 	Pixels     []rune
 	ScreenSize UV
-	Pannels    []*Pannel
+	Pannels    map[string]*Pannel
+	pnls       []*Pannel
 	headerText string
 	redraw     chan struct{}
 }
@@ -20,33 +24,80 @@ func NewScreen(w, h int) Screen {
 	return Screen{
 		Pixels:     make([]rune, w*h),
 		ScreenSize: NewUV(w, h),
-		Pannels:    make([]*Pannel, 0, 3),
+		Pannels:    make(map[string]*Pannel),
+		pnls:       make([]*Pannel, 0),
 		redraw:     make(chan struct{}),
 	}
 }
 
-func (s *Screen) AddPannel(p *Pannel) {
+func (s *Screen) AddPannel(name string, p *Pannel) {
 	if len(s.Pannels) == 0 {
 		if p.Size.Zero() {
 			p.SetSize(NewUV(s.ScreenSize.X-1, s.ScreenSize.Y-2))
 		}
 	}
 	p.redrawCh = s.redraw
-	s.Pannels = append(s.Pannels, p)
+	s.Pannels[name] = p
+	s.pnls = append(s.pnls, p)
 	s.Draw()
+}
+
+func (s *Screen) MarkAllPannelsDirty() {
+	for key := range s.Pannels {
+		s.Pannels[key].Dirty = true
+	}
 }
 
 func resetCursor() {
 	fmt.Print("\033[H")
 }
 
+func (s *Screen) checkSize() {
+	w, h, err := term.GetSize(int(os.Stdin.Fd()))
+	if err != nil {
+		slog.Error("couldn't get size of terminal")
+		return
+	}
+	if w != s.ScreenSize.X || h != s.ScreenSize.Y {
+		s.changeScreenSize(w, h)
+	}
+}
+
+func (s *Screen) changeScreenSize(w, h int) {
+	s.Pixels = make([]rune, w*h)
+	s.ScreenSize = NewUV(w, h)
+	for key := range s.Pannels {
+		if !s.Pannels[key].FixedSize {
+			s.Pannels[key].SetSize(NewUV(w, h-1))
+			continue
+		}
+		s.Pannels[key].AdjustSize(NewUV(w, h))
+	}
+}
+
+func (s *Screen) OutOfBounds(key string) bool {
+	pannel, ok := s.Pannels[key]
+	if !ok {
+		return false
+	}
+	return pannel.Size.X+pannel.Origin.X > s.ScreenSize.X ||
+		pannel.Size.Y+pannel.Origin.Y > s.ScreenSize.Y
+}
+
 func (s *Screen) Draw() {
+	s.checkSize()
 	resetCursor()
 	s.initScreen()
 	s.drawHeader()
-	for i := range s.Pannels {
-		s.drawBorder(s.Pannels[i])
-		s.drawCanvas(s.Pannels[i])
+	for i := range s.pnls {
+		if !s.pnls[i].Dirty {
+			continue
+		}
+		if s.pnls[i].Offscreen {
+			continue
+		}
+		s.drawBorder(s.pnls[i])
+		s.drawCanvas(s.pnls[i])
 	}
 	os.Stdout.Write([]byte(string(s.Pixels)))
 }
@@ -93,6 +144,9 @@ func (s *Screen) drawInput(w *Pannel) {
 }
 
 func (s *Screen) drawCanvas(p *Pannel) {
+	if p.Offscreen {
+		return
+	}
 	for i := 0; i < len(p.canvas); i++ {
 		p.canvas[i] = rune(160)
 	}
@@ -114,46 +168,73 @@ func (s *Screen) drawCanvas(p *Pannel) {
 			// should wrap to other side of canvas
 			j += s.ScreenSize.X - (p.Size.X - 2)
 		}
-		s.Pixels[j] = p.canvas[i]
+		if i > p.CanvasSize.Square {
+			break
+		}
+		s.setPixel(j, p.canvas[i])
+		// s.Pixels[j] = p.canvas[i]
 		j++
 	}
 }
 
 func (s *Screen) drawBorder(p *Pannel) {
+	if p.Offscreen {
+		return
+	}
 	i := p.Origin.X + (s.ScreenSize.X * (p.Origin.Y + 1))
 	// top margin
-	// TODO: these box symbols should be moved into a new symbols.go
-	//		since they are not really keypresses
-	s.Pixels[i] = rune(p.Border.TopLeft)
+	if i > s.ScreenSize.Square {
+		return
+	}
+	s.setPixel(i, rune(p.Border.TopLeft))
 	i++
 	offset := i + p.Size.X - 1
 	for i < offset-1 {
-		s.Pixels[i] = rune(p.Border.Horizontal)
+		s.setPixel(i, rune(p.Border.Horizontal))
+		// s.Pixels[i] = rune(p.Border.Horizontal)
 		i++
 	}
-	s.Pixels[i] = rune(p.Border.TopRight)
+	s.setPixel(i, rune(p.Border.TopRight))
+	// s.Pixels[i] = rune(p.Border.TopRight)
 	i++
 
 	// sides
 	i += s.ScreenSize.X - p.Size.X
 	for j := 0; j < p.Size.Y-2; j++ {
+		if p.Origin.Y+j > s.ScreenSize.Y {
+			return
+		}
 		offset = i + p.Size.X
-		s.Pixels[i] = rune(p.Border.Virtical)
+		s.setPixel(i, rune(p.Border.Virtical))
 		for i < offset-1 {
 			i++
 		}
-		s.Pixels[i] = rune(p.Border.Virtical)
+		s.setPixel(i, rune(p.Border.Virtical))
+		// s.Pixels[i] = rune(p.Border.Virtical)
 		i += (s.ScreenSize.X - p.Size.X) + 1
 	}
 
 	// bottom
-	s.Pixels[i] = rune(p.Border.BottomLeft)
+	if i > s.ScreenSize.Square {
+		return
+	}
+	s.setPixel(i, rune(p.Border.BottomLeft))
+	// s.Pixels[i] = rune(p.Border.BottomLeft)
 	i++
 	offset = i + p.Size.X
 	for i < offset-2 {
-		s.Pixels[i] = rune(p.Border.Horizontal)
+		s.setPixel(i, rune(p.Border.Horizontal))
+		// s.Pixels[i] = rune(p.Border.Horizontal)
 		i++
 	}
-	s.Pixels[i] = rune(p.Border.BottomRight)
+	s.setPixel(i, rune(p.Border.BottomRight))
+	// s.Pixels[i] = rune(p.Border.BottomRight)
 	i++
+}
+
+func (s *Screen) setPixel(index int, r rune) {
+	if index > s.ScreenSize.Square-1 {
+		return
+	}
+	s.Pixels[index] = r
 }
